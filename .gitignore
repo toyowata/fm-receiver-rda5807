@@ -1,0 +1,10 @@
+.build
+.mbed
+projectfiles
+*.py*
+mbed_settings.py
+cmake_build
+BUILD
+
+SB1602E
+mbed-os

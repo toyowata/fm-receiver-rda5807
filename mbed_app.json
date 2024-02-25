@@ -1,0 +1,43 @@
+{
+    "target_overrides": {
+        "*": {
+            "platform.stdio-baud-rate"                  : 115200,
+            "platform.stdio-convert-newlines"           : true,
+            "platform.stdio-buffered-serial"            : true,
+            "platform.stdio-flush-at-exit"              : true,
+            "target.printf_lib"                         : "std"
+        },
+        "RASPBERRY_PI_PICO": {
+            "LCD-SCL"                                   : "p15",
+            "LCD-SDA"                                   : "p14",
+            "BOOT"                                      : "p21"
+        },
+        "TINY2040": {
+            "LCD-SCL"                                   : "p27",
+            "LCD-SDA"                                   : "p26",
+            "BOOT"                                      : "p23"
+        },
+        "QT_PY_RP2040": {
+            "LCD-SCL"                                   : "p25",
+            "LCD-SDA"                                   : "p24",
+            "BOOT"                                      : "p21"
+        }
+    },
+    "config": {
+        "LCD-SCL": {
+            "help"      : "I2C character LCD SCL pin name",
+            "value"     : "SCL",
+            "macro_name": "I2C_LCD_SCL"
+        },
+        "LCD-SDA": {
+            "help"      : "I2C character LCD SDA pin name",
+            "value"     : "SDA",
+            "macro_name": "I2C_LCD_SDA"
+        },
+        "BOOT": {
+            "help"      : "Boot pin name",
+            "value"     : "NC",
+            "macro_name": "BOOT_PIN"            
+        }
+    }
+}
