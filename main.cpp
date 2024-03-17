@@ -3,38 +3,68 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <time.h>
-
 #include "mbed.h"
 #include "USBSerial.h"
 #include "SB1602E.h"
 
-#define POLLING_INTERVAL        500ms
+#define POLLING_INTERVAL        200ms
 #define RDA5807_ADDR_SEQ        (0x10 << 1)
 #define RDA5807_ADDR_IDX        (0x11 << 1)
 
 USBSerial serial(false);
 I2C fm(p24, p25);
-InterruptIn btn(p5);
 SB1602E lcd(p24, p25);
+InterruptIn btn(p5, PullUp);
+InterruptIn v_up(p26, PullUp);
+InterruptIn v_down(p29, PullUp);
 
 uint8_t volume = 0;
 int band_idx = 0;
-int update = 0;
+int update_band = 0;
+int update_vol = 0;
+
 const uint16_t band[] = {
-    795,
-    800,
-    813,
-    825,
-    905,
-    916,
-    924,
-    930
+    800, // FM東京
+    813, // J-WAVE
+    825, // NHK FM
+    897, // InternFM
+    905, // TBSラジオ
+    916, // 文化放送
+    924, // ラジオ日本
+    930  // ニッポン放送
 };
 
-void toggle(void)
+void band_handler(void)
 {
-    update = 1;
+    update_band = 1;
+}
+
+void v_up_handler(void)
+{
+    if (volume < 15) {
+        volume++;
+    }
+    update_vol = 1;
+}
+
+void v_down_handler(void)
+{
+    if (volume > 0) {
+        volume--;
+    }
+    update_vol = 1;
+}
+
+void change_vol()
+{
+    char buf[3];
+    char info[10];
+    buf[0] = 0x05;
+    buf[1] = 0x88;  // 0x05 H
+    buf[2] = (0x80 | volume);  // 0x05 L LNAP, Volume
+    fm.write(RDA5807_ADDR_IDX, buf , 3);
+    sprintf(info, ":%02d", volume);
+    lcd.printf(5, 1, info);
 }
 
 void change_band(int idx)
@@ -51,11 +81,9 @@ void change_band(int idx)
     buf[2] = l3;    // 0x03 L freq
     fm.write(RDA5807_ADDR_IDX, buf , 3);
 
-    sprintf(info, "%2d.%d MHz", band[idx]/10, band[idx]%10);
+    sprintf(info, "%2d.%1dMHz", band[idx]/10, band[idx]%10);
     serial.printf("%s\n", info);
     lcd.printf(0, 0, info);
-    sprintf(info, "vol: %02d", volume);
-    lcd.printf(0, 1, info);
 }
 
 int main()
@@ -66,11 +94,11 @@ int main()
     lcd.clear();
     lcd.contrast(0x35);
     
-
     serial.printf("\n*** FMラジオ受信プログラム ***\n\n");
-    btn.mode(PullUp);
-    btn.fall(toggle);
-    
+    btn.fall(band_handler);
+    v_up.fall(v_up_handler);
+    v_down.fall(v_down_handler);
+        
     // read CHIPID
     buf[0] = 0;
     fm.write(RDA5807_ADDR_IDX, buf , 1);
@@ -83,7 +111,7 @@ int main()
     buf[3] = 0; // 0x03 L
     fm.write(RDA5807_ADDR_SEQ, buf , 4);
 
-    uint16_t chan = (800) - 760;
+    uint16_t chan =  band[0] - 760;
     char h3 = chan >> 2;   // 0x03 H
     char l3 = chan & 0x03; // 0x03 L
     l3 = l3 << 6;
@@ -100,24 +128,31 @@ int main()
     fm.write(RDA5807_ADDR_SEQ, buf , 8);
 
     change_band(0);
-
-    volume = 12;
-    buf[0] = 0x05;
-    buf[1] = 0x88;  // 0x05 H
-    buf[2] = (0x80 | volume);  // 0x05 L LNAP, Volume
-    fm.write(RDA5807_ADDR_IDX, buf , 3);
-
-    update = 0;
+    volume = 10;
+    change_vol();
 
     while (1) {
-        if (update != 0) {
+        if (update_band) {
             band_idx++;
             if (band_idx >= (int)(sizeof(band)/sizeof(uint16_t)) ) {
                 band_idx = 0;
             }
             change_band(band_idx);
-            update = 0;
+            update_band = 0;
         }
+        if (update_vol) {
+            change_vol();
+            update_vol = 0;
+        }
+
+        char info[20];
+        buf[0] = 0x0B;
+        fm.write(RDA5807_ADDR_IDX, buf , 1);
+        fm.read(RDA5807_ADDR_IDX, buf, 2);
+        serial.printf("RSSI = 0x%02d", buf[0] >> 1);
+        sprintf(info, "%02ddB :%02d", buf[0] >> 1, volume);
+        lcd.printf(0, 1, info);
+
         ThisThread::sleep_for(POLLING_INTERVAL);
     }
 }
